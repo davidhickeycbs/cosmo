@@ -129,6 +129,11 @@ type (
 		Path  string
 	}
 
+	AccessLogsConfig struct {
+		Attributes []config.CustomAttribute
+		Logger     *zap.Logger
+	}
+
 	// Config defines the configuration options for the Router.
 	Config struct {
 		clusterName               string
@@ -185,6 +190,7 @@ type (
 		processStartTime          time.Time
 		developmentMode           bool
 		healthcheck               health.Checker
+		accessLogsConfig          *AccessLogsConfig
 		// If connecting to localhost inside Docker fails, fallback to the docker internal address for the host
 		localhostFallbackInsideDocker bool
 
@@ -214,6 +220,7 @@ type (
 		webSocketConfiguration *config.WebSocketConfiguration
 
 		subgraphErrorPropagation config.SubgraphErrorPropagationConfiguration
+		clientHeader             config.ClientHeader
 	}
 	// Option defines the method to customize server.
 	Option func(svr *Router)
@@ -280,12 +287,15 @@ func NewRouter(opts ...Option) (*Router, error) {
 	if r.graphqlMetricsConfig == nil {
 		r.graphqlMetricsConfig = DefaultGraphQLMetricsConfig()
 	}
+
 	if r.routerTrafficConfig == nil {
 		r.routerTrafficConfig = DefaultRouterTrafficConfig()
 	}
+
 	if r.fileUploadConfig == nil {
 		r.fileUploadConfig = DefaultFileUploadConfig()
 	}
+
 	if r.accessController != nil {
 		if len(r.accessController.authenticators) == 0 && r.accessController.authenticationRequired {
 			r.logger.Warn("authentication is required but no authenticators are configured")
@@ -347,6 +357,13 @@ func NewRouter(opts ...Option) (*Router, error) {
 		"tracestate",
 		// Required for feature flags
 		"x-feature-flag",
+	}
+
+	if r.clientHeader.Name != "" {
+		defaultHeaders = append(defaultHeaders, r.clientHeader.Name)
+	}
+	if r.clientHeader.Version != "" {
+		defaultHeaders = append(defaultHeaders, r.clientHeader.Version)
 	}
 
 	defaultMethods := []string{
@@ -1630,6 +1647,12 @@ func WithSubgraphErrorPropagation(cfg config.SubgraphErrorPropagationConfigurati
 	}
 }
 
+func WithAccessLogs(cfg *AccessLogsConfig) Option {
+	return func(r *Router) {
+		r.accessLogsConfig = cfg
+	}
+}
+
 func WithTLSConfig(cfg *TlsConfig) Option {
 	return func(r *Router) {
 		r.tlsConfig = cfg
@@ -1652,6 +1675,7 @@ func WithApolloCompatibilityFlagsConfig(cfg config.ApolloCompatibilityFlags) Opt
 	return func(r *Router) {
 		if cfg.EnableAll {
 			cfg.ValueCompletion.Enabled = true
+			cfg.TruncateFloats.Enabled = true
 		}
 		r.apolloCompatibilityFlags = cfg
 	}
@@ -1660,6 +1684,12 @@ func WithApolloCompatibilityFlagsConfig(cfg config.ApolloCompatibilityFlags) Opt
 func WithStorageProviders(cfg config.StorageProviders) Option {
 	return func(r *Router) {
 		r.storageProviders = cfg
+	}
+}
+
+func WithClientHeader(cfg config.ClientHeader) Option {
+	return func(r *Router) {
+		r.clientHeader = cfg
 	}
 }
 
@@ -1743,10 +1773,11 @@ func TraceConfigFromTelemetry(cfg *config.Telemetry) *rtrace.Config {
 		ResourceAttributes:   buildResourceAttributes(cfg.ResourceAttributes),
 		Exporters:            exporters,
 		Propagators:          propagators,
+		ResponseTraceHeader:  cfg.Tracing.ResponseTraceHeader,
 	}
 }
 
-func buildAttributesMapper(attributes []config.OtelAttribute) func(req *http.Request) []attribute.KeyValue {
+func buildAttributesMapper(attributes []config.CustomAttribute) func(req *http.Request) []attribute.KeyValue {
 	return func(req *http.Request) []attribute.KeyValue {
 		var result []attribute.KeyValue
 
@@ -1771,7 +1802,7 @@ func buildAttributesMapper(attributes []config.OtelAttribute) func(req *http.Req
 	}
 }
 
-func buildResourceAttributes(attributes []config.OtelResourceAttribute) []attribute.KeyValue {
+func buildResourceAttributes(attributes []config.CustomStaticAttribute) []attribute.KeyValue {
 	var result []attribute.KeyValue
 	for _, attr := range attributes {
 		result = append(result, attribute.String(attr.Key, attr.Value))

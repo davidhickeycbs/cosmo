@@ -6,11 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/cosmo/router-tests/testenv"
-	"github.com/wundergraph/cosmo/router/core"
-	"github.com/wundergraph/cosmo/router/pkg/config"
-	"github.com/wundergraph/cosmo/router/pkg/otel"
-	"github.com/wundergraph/cosmo/router/pkg/trace/tracetest"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/instrumentation"
@@ -20,6 +15,12 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.19.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/wundergraph/cosmo/router-tests/testenv"
+	"github.com/wundergraph/cosmo/router/core"
+	"github.com/wundergraph/cosmo/router/pkg/config"
+	"github.com/wundergraph/cosmo/router/pkg/otel"
+	"github.com/wundergraph/cosmo/router/pkg/trace/tracetest"
 )
 
 func TestTelemetry(t *testing.T) {
@@ -728,17 +729,17 @@ func TestTelemetry(t *testing.T) {
 		testenv.Run(t, &testenv.Config{
 			TraceExporter: exporter,
 			MetricReader:  metricReader,
-			OtelResourceAttributes: []config.OtelResourceAttribute{
+			OtelResourceAttributes: []config.CustomStaticAttribute{
 				{
 					Key:   "custom.resource",
 					Value: "value",
 				},
 			},
-			OtelAttributes: []config.OtelAttribute{
+			OtelAttributes: []config.CustomAttribute{
 				{
 					Key:     "custom",
 					Default: "value",
-					ValueFrom: &config.OtelAttributeFromValue{
+					ValueFrom: &config.CustomDynamicAttribute{
 						RequestHeader: "x-custom-header",
 					},
 				},
@@ -1100,13 +1101,13 @@ func TestTelemetry(t *testing.T) {
 		testenv.Run(t, &testenv.Config{
 			TraceExporter: exporter,
 			MetricReader:  metricReader,
-			OtelResourceAttributes: []config.OtelResourceAttribute{
+			OtelResourceAttributes: []config.CustomStaticAttribute{
 				{
 					Key:   "custom.resource",
 					Value: "value",
 				},
 			},
-			OtelAttributes: []config.OtelAttribute{
+			OtelAttributes: []config.CustomAttribute{
 				{
 					Key:     "custom",
 					Default: "value",
@@ -2157,11 +2158,7 @@ func TestTelemetry(t *testing.T) {
 
 			require.True(t, given.Equals(&want))
 
-			require.Equal(t, sdktrace.Status{Code: codes.Error, Description: `Failed to fetch from Subgraph 'products' at Path: 'employees'.
-Downstream errors:
-1. Subgraph error at Path 'foo', Message: Unauthorized, Extension Code: UNAUTHORIZED.
-2. Subgraph error at Path 'bar', Message: MyErrorMessage, Extension Code: YOUR_ERROR_CODE.
-`}, sn[8].Status())
+			require.Equal(t, sdktrace.Status{Code: codes.Error, Description: `Failed to fetch from Subgraph 'products' at Path: 'employees'.`}, sn[8].Status())
 
 			events := sn[8].Events()
 			require.Len(t, events, 3, "expected 2 events, one for the fetch and one two downstream GraphQL errors")
@@ -2183,11 +2180,7 @@ Downstream errors:
 			require.Equal(t, "query myQuery", sn[10].Name())
 			require.Equal(t, trace.SpanKindServer, sn[10].SpanKind())
 			require.Equal(t, codes.Error, sn[10].Status().Code)
-			require.Contains(t, sn[10].Status().Description, `Failed to fetch from Subgraph 'products' at Path: 'employees'.
-Downstream errors:
-1. Subgraph error at Path 'foo', Message: Unauthorized, Extension Code: UNAUTHORIZED.
-2. Subgraph error at Path 'bar', Message: MyErrorMessage, Extension Code: YOUR_ERROR_CODE.
-`)
+			require.Contains(t, sn[10].Status().Description, `Failed to fetch from Subgraph 'products' at Path: 'employees'.`)
 		})
 	})
 
@@ -2405,6 +2398,93 @@ Downstream errors:
 				})
 				require.JSONEq(t, employeesIDData, res.Body)
 			})
+		})
+	})
+
+	t.Run("Trace ID Response header", func(t *testing.T) {
+		t.Parallel()
+
+		exporter := tracetest.NewInMemoryExporter(t)
+		customTraceHeader := "trace-id"
+
+		testenv.Run(t, &testenv.Config{
+			TraceExporter: exporter,
+			ResponseTraceHeader: config.ResponseTraceHeader{
+				Enabled:    true,
+				HeaderName: customTraceHeader,
+			},
+		}, func(t *testing.T, xEnv *testenv.Environment) {
+
+			res := xEnv.MakeGraphQLRequestOK(testenv.GraphQLRequest{
+				Query: `query { employees { id } }`,
+			})
+			require.JSONEq(t, employeesIDData, res.Body)
+
+			sn := exporter.GetSpans().Snapshots()
+			require.Equal(t, sn[0].SpanContext().TraceID().String(), res.Response.Header.Get("trace-id"))
+		})
+	})
+
+	t.Run("Trace ID Response header with default header name", func(t *testing.T) {
+		t.Parallel()
+
+		exporter := tracetest.NewInMemoryExporter(t)
+
+		testenv.Run(t, &testenv.Config{
+			TraceExporter: exporter,
+			ResponseTraceHeader: config.ResponseTraceHeader{
+				Enabled:    true,
+				HeaderName: "x-wg-trace-id",
+			},
+		}, func(t *testing.T, xEnv *testenv.Environment) {
+
+			res := xEnv.MakeGraphQLRequestOK(testenv.GraphQLRequest{
+				Query: `query { employees { id } }`,
+			})
+			require.JSONEq(t, employeesIDData, res.Body)
+
+			sn := exporter.GetSpans().Snapshots()
+			require.Equal(t, sn[0].SpanContext().TraceID().String(), res.Response.Header.Get("x-wg-trace-id"))
+		})
+	})
+
+	t.Run("Custom client name and client version headers", func(t *testing.T) {
+		t.Parallel()
+
+		exporter := tracetest.NewInMemoryExporter(t)
+
+		customClientHeaderName := "client-name"
+		customClientHeaderVersion := "client-version"
+
+		testenv.Run(t, &testenv.Config{
+			TraceExporter: exporter,
+			ClientHeader: config.ClientHeader{
+				Name:    customClientHeaderName,
+				Version: customClientHeaderVersion,
+			},
+		}, func(t *testing.T, xEnv *testenv.Environment) {
+			header := make(http.Header)
+			header.Add("client-name", "name")
+			header.Add("client-version", "version")
+			res := xEnv.MakeGraphQLRequestOK(testenv.GraphQLRequest{
+				Query:  `query { employees { id } }`,
+				Header: header,
+			})
+			require.JSONEq(t, employeesIDData, res.Body)
+
+			sn := exporter.GetSpans().Snapshots()
+
+			var clientName, clientVersion string
+			for _, v := range sn[0].Attributes() {
+				if v.Key == "wg.client.name" {
+					clientName = v.Value.AsString()
+				}
+				if v.Key == "wg.client.version" {
+					clientVersion = v.Value.AsString()
+				}
+			}
+			require.Equal(t, "name", clientName)
+			require.Equal(t, "version", clientVersion)
 		})
 	})
 }

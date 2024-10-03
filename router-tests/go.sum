@@ -21,8 +21,6 @@ github.com/PuerkitoBio/goquery v1.9.2 h1:4/wZksC3KgkQw7SQgkKotmKljk0M6V8TUvA8Wb4
 github.com/PuerkitoBio/goquery v1.9.2/go.mod h1:GHPCaP0ODyyxqcNoFGYlAprUFH81NuRPd0GX3Zu2Mvk=
 github.com/agnivade/levenshtein v1.1.1 h1:QY8M92nrzkmr798gCo3kmMyqXFzdQVpxLlGPRBij0P8=
 github.com/agnivade/levenshtein v1.1.1/go.mod h1:veldBMzWxcCG2ZvUTKD2kJNRdCk5hVbJomOvKkmgYbo=
-github.com/alitto/pond v1.9.2 h1:9Qb75z/scEZVCoSU+osVmQ0I0JOeLfdTDafrbcJ8CLs=
-github.com/alitto/pond v1.9.2/go.mod h1:xQn3P/sHTYcU/1BR3i86IGIrilcrGC2LiS+E2+CJWsI=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 h1:bvNMNQO63//z+xNgfBlViaCIJKLlCJ6/fmUseuG0wVQ=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
 github.com/andybalholm/brotli v1.1.0 h1:eLKJA0d02Lf0mVpIDgYnqXcUn0GqVmEFny3VuID1U3M=
@@ -323,8 +321,8 @@ github.com/testcontainers/testcontainers-go v0.29.1/go.mod h1:SnKnKQav8UcgtKqjp/
 github.com/testcontainers/testcontainers-go/modules/kafka v0.29.1 h1:idNT5Pw9NI6cR7ZEtw+w4tPyadi/pqqYvkAWmlfWAG0=
 github.com/testcontainers/testcontainers-go/modules/kafka v0.29.1/go.mod h1:5FZ9KvcEPtfF2w9RQhj5N/YEkY6qoQm3vM0gJ0vHzyo=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
-github.com/tidwall/gjson v1.17.3 h1:bwWLZU7icoKRG+C+0PNwIKC6FCJO/Q3p2pZvuP0jN94=
-github.com/tidwall/gjson v1.17.3/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
+github.com/tidwall/gjson v1.18.0 h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
+github.com/tidwall/gjson v1.18.0/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
 github.com/tidwall/match v1.1.1/go.mod h1:eRSPERbgtNPcGhD8UCthc6PmLEQXEWd3PRB5JTxsfmM=
 github.com/tidwall/pretty v1.2.0/go.mod h1:ITEVvHYasfjBbM0u2Pg8T2nJnzm8xPwvNhhsoaGGjNU=
@@ -336,6 +334,8 @@ github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFA
 github.com/tklauser/go-sysconf v0.3.12/go.mod h1:Ho14jnntGE1fpdOqQEEaiKRpvIavV0hSfmBq8nJbHYI=
 github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+Fk=
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
+github.com/tonglil/opentelemetry-go-datadog-propagator v0.1.3 h1:Ozy1UnlID19jL6+vixEcA1t4NMf8hp01uDAY1nwGl8U=
+github.com/tonglil/opentelemetry-go-datadog-propagator v0.1.3/go.mod h1:Ijp5eaviP2mk8CJM+0EDYFKNULr+kicPSB9FOvxOhW0=
 github.com/twmb/franz-go v1.16.1 h1:rpWc7fB9jd7TgmCyfxzenBI+QbgS8ZfJOUQE+tzPtbE=
 github.com/twmb/franz-go v1.16.1/go.mod h1:/pER254UPPGp/4WfGqRi+SIRGE50RSQzVubQp6+N4FA=
 github.com/twmb/franz-go/pkg/kadm v1.11.0 h1:FfeWJ0qadntFpAcQt8JzNXW4dijjytZNLrzJuzzzuxA=
@@ -348,12 +348,12 @@ github.com/vektah/gqlparser/v2 v2.5.16 h1:1gcmLTvs3JLKXckwCwlUagVn/IlV2bwqle0vJ0
 github.com/vektah/gqlparser/v2 v2.5.16/go.mod h1:1lz1OeCqgQbQepsGxPVywrjdBHW2T08PUS3pJqepRww=
 github.com/wundergraph/astjson v0.0.0-20240910140849-bb15f94bd362 h1:MxNSJqQFJyhKwU4xPj6diIRLm+oY1wNbAZW0jJpikBE=
 github.com/wundergraph/astjson v0.0.0-20240910140849-bb15f94bd362/go.mod h1:eOTL6acwctsN4F3b7YE+eE2t8zcJ/doLm9sZzsxxxrE=
-github.com/wundergraph/cosmo/demo v0.0.0-20240923105518-02594e0c21a5 h1:2LRTUTaA4vetIg9Vi9VjXPptx/Tq1oyFlqFFf1DzCNI=
-github.com/wundergraph/cosmo/demo v0.0.0-20240923105518-02594e0c21a5/go.mod h1:BtdbDvyVxDDU1hKjVZCtuiO5Xqajxvz4sopiEgnnFmQ=
-github.com/wundergraph/cosmo/router v0.0.0-20240923105518-02594e0c21a5 h1:qMAJB/ViAa8SlbNZA0JkPHVdxD2Sfyx35gHNzkQ3dCI=
-github.com/wundergraph/cosmo/router v0.0.0-20240923105518-02594e0c21a5/go.mod h1:DzdYWLtxdc46a6uh5ZAJIwfaeQPVN7+xRHVKHA1fQXg=
-github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.86 h1:bo87Jw2/yDaSH6RBB4RpKiqW2ZYHKC9lYyEqX65lUo0=
-github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.86/go.mod h1:zkPVYJu1iQd0y1fBNj+oXe9uMI/33TSoiXEsKSAESZY=
+github.com/wundergraph/cosmo/demo v0.0.0-20241003173850-3420443d36be h1:QLlmaKfxWcPTqNUKf4wQNj5+hDn/KXfYhm8svbsyi9Y=
+github.com/wundergraph/cosmo/demo v0.0.0-20241003173850-3420443d36be/go.mod h1:NoPSGZQguG3UHqYP9SGP6MeOA3VBKRnKnJW+i/qktD8=
+github.com/wundergraph/cosmo/router v0.0.0-20241003173850-3420443d36be h1:7TsX4Qp9L2m++CsR70P3wANRyL72v2f6l4wcKhX4+vU=
+github.com/wundergraph/cosmo/router v0.0.0-20241003173850-3420443d36be/go.mod h1:jxuKVMTzIhAgbHWq0Eh3SAkFYIIT9MjTToVkaekPSsI=
+github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.95 h1:YHC24JJVRkJmjVloYx+0+5blctgn/sJaCWrs0X3aPL4=
+github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.95/go.mod h1:zkPVYJu1iQd0y1fBNj+oXe9uMI/33TSoiXEsKSAESZY=
 github.com/xrash/smetrics v0.0.0-20240312152122-5f08fbb34913 h1:+qGGcbkzsfDQNPPe9UDgpxAWQrhbbBXOYJFQDq/dtJw=
 github.com/xrash/smetrics v0.0.0-20240312152122-5f08fbb34913/go.mod h1:4aEEwZQutDLsQv2Deui4iYQ6DWTxR14g6m8Wv88+Xqk=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

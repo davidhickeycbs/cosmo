@@ -80,6 +80,9 @@ func (b *ExecutorConfigurationBuilder) Build(ctx context.Context, opts *Executor
 	if opts.ApolloCompatibilityFlags.ValueCompletion.Enabled {
 		options.ResolvableOptions.ApolloCompatibilityValueCompletionInExtensions = true
 	}
+	if opts.ApolloCompatibilityFlags.TruncateFloats.Enabled {
+		options.ResolvableOptions.ApolloCompatibilityTruncateFloatValues = true
+	}
 
 	switch opts.RouterEngineConfig.SubgraphErrorPropagation.Mode {
 	case config.SubgraphErrorPropagationModePassthrough:
@@ -256,7 +259,7 @@ func (b *ExecutorConfigurationBuilder) buildPlannerConfiguration(ctx context.Con
 		PrintOperationTransformations: debug.PrintOperationTransformations,
 		PrintOperationEnableASTRefs:   debug.PrintOperationEnableASTRefs,
 		PrintPlanningPaths:            debug.PrintPlanningPaths,
-		PrintQueryPlans:               debug.PrintQueryPlans,
+		PrintQueryPlans:               debug.PrintIntermediateQueryPlans,
 		PrintNodeSuggestions:          debug.PrintNodeSuggestions,
 		ConfigurationVisitor:          debug.ConfigurationVisitor,
 		PlanningVisitor:               debug.PlanningVisitor,
