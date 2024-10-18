@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"go.opentelemetry.io/otel/attribute"
 	"net"
 	"net/http"
 	"regexp"
@@ -59,6 +59,7 @@ type WebsocketMiddlewareOptions struct {
 
 	WebSocketConfiguration *config.WebSocketConfiguration
 	ClientHeader           config.ClientHeader
+	Attributes             []attribute.KeyValue
 }
 
 func NewWebsocketMiddleware(ctx context.Context, opts WebsocketMiddlewareOptions) func(http.Handler) http.Handler {
@@ -78,6 +79,7 @@ func NewWebsocketMiddleware(ctx context.Context, opts WebsocketMiddlewareOptions
 		config:             opts.WebSocketConfiguration,
 		clientHeader:       opts.ClientHeader,
 		handlerSem:         semaphore.NewWeighted(128),
+		attributes:         opts.Attributes,
 	}
 	if opts.WebSocketConfiguration != nil && opts.WebSocketConfiguration.AbsintheProtocol.Enabled {
 		handler.absintheHandlerEnabled = true
@@ -216,7 +218,8 @@ type WebsocketHandler struct {
 	handlerSem    *semaphore.Weighted
 	connectionIDs atomic.Int64
 
-	stats WebSocketsStatistics
+	stats      WebSocketsStatistics
+	attributes []attribute.KeyValue
 
 	readTimeout time.Duration
 
@@ -315,7 +318,7 @@ func (h *WebsocketHandler) handleUpgradeRequest(w http.ResponseWriter, r *http.R
 		Request:               r,
 		Connection:            conn,
 		Protocol:              protocol,
-		Logger:                h.logger,
+		Logger:                requestLogger,
 		Stats:                 h.stats,
 		ConnectionID:          h.connectionIDs.Inc(),
 		ClientInfo:            clientInfo,
@@ -323,16 +326,17 @@ func (h *WebsocketHandler) handleUpgradeRequest(w http.ResponseWriter, r *http.R
 		Config:                h.config,
 		ForwardUpgradeHeaders: h.forwardUpgradeHeadersConfig,
 		ForwardQueryParams:    h.forwardQueryParamsConfig,
+		Attributes:            h.attributes,
 	})
 	err = handler.Initialize()
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			requestLogger.Warn("No more data to read during initialization", zap.Error(err))
-		} else if errors.As(err, &wsutil.ClosedError{}) {
-			requestLogger.Warn("Client closed connection during initialization", zap.Error(err))
-		} else {
-			requestLogger.Error("Initializing websocket connection", zap.Error(err))
-		}
+
+		// Don't produce errors logs here because it can only be client side errors
+		// e.g. slow client, aborted connection, invalid JSON, etc.
+		// We log it as debug because it's not a server side error
+
+		requestLogger.Debug("Initializing websocket connection", zap.Error(err))
+
 		handler.Close()
 		return
 	}
@@ -352,7 +356,7 @@ func (h *WebsocketHandler) handleUpgradeRequest(w http.ResponseWriter, r *http.R
 					statusCode = http.StatusUnauthorized
 				}
 				http.Error(handler.w, http.StatusText(statusCode), statusCode)
-				handler.writeErrorMessage(requestID, err)
+				_ = handler.writeErrorMessage(requestID, err)
 				handler.Close()
 				return
 			}
@@ -364,7 +368,7 @@ func (h *WebsocketHandler) handleUpgradeRequest(w http.ResponseWriter, r *http.R
 			err := json.Unmarshal(handler.initialPayload, &initialPayloadMap)
 			if err != nil {
 				requestLogger.Error("Error parsing initial payload: %v", zap.Error(err))
-				handler.writeErrorMessage(requestID, err)
+				_ = handler.writeErrorMessage(requestID, err)
 				handler.Close()
 				return
 			}
@@ -372,7 +376,7 @@ func (h *WebsocketHandler) handleUpgradeRequest(w http.ResponseWriter, r *http.R
 			if !ok {
 				err := fmt.Errorf("invalid JWT token in initial payload: JWT token is not a string")
 				requestLogger.Error(err.Error())
-				handler.writeErrorMessage(requestID, err)
+				_ = handler.writeErrorMessage(requestID, err)
 				handler.Close()
 				return
 			}
@@ -648,6 +652,7 @@ type WebSocketConnectionHandlerOptions struct {
 	InitRequestID         string
 	ForwardUpgradeHeaders forwardConfig
 	ForwardQueryParams    forwardConfig
+	Attributes            []attribute.KeyValue
 }
 
 type WebSocketConnectionHandler struct {
@@ -677,6 +682,8 @@ type WebSocketConnectionHandler struct {
 	subscriptionIDs atomic.Int64
 	subscriptions   sync.Map
 	stats           WebSocketsStatistics
+
+	attributes []attribute.KeyValue
 
 	forwardInitialPayload bool
 
@@ -719,6 +726,7 @@ func NewWebsocketConnectionHandler(ctx context.Context, opts WebSocketConnection
 		forwardQueryParams:    &opts.ForwardQueryParams,
 		forwardInitialPayload: opts.Config != nil && opts.Config.ForwardInitialPayload,
 		plannerOptions:        opts.PlanOptions,
+		attributes:            opts.Attributes,
 	}
 }
 
@@ -766,7 +774,7 @@ func (h *WebSocketConnectionHandler) parseAndPlan(payload []byte) (*ParsedOperat
 	var skipParse bool
 
 	if operationKit.parsedOperation.IsPersistedOperation {
-		skipParse, err = operationKit.FetchPersistedOperation(h.ctx, h.clientInfo, baseAttributesFromContext(h.ctx))
+		skipParse, err = operationKit.FetchPersistedOperation(h.ctx, h.clientInfo)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -827,8 +835,6 @@ func (h *WebSocketConnectionHandler) parseAndPlan(payload []byte) (*ParsedOperat
 	opContext.planningTime = time.Since(startPlanning)
 
 	opContext.initialPayload = h.initialPayload
-
-	opContext.setAttributes()
 
 	return operationKit.parsedOperation, opContext, nil
 }
@@ -894,7 +900,14 @@ func (h *WebSocketConnectionHandler) executeSubscription(registration *Subscript
 		resolveCtx.InitialPayload = operationCtx.initialPayload
 	}
 
-	resolveCtx = resolveCtx.WithContext(withRequestContext(h.ctx, buildRequestContext(nil, registration.clientRequest, operationCtx, h.logger)))
+	reqContext := buildRequestContext(requestContextOptions{
+		operationContext:    operationCtx,
+		requestLogger:       h.logger,
+		metricSetAttributes: nil,
+		w:                   nil,
+		r:                   registration.clientRequest,
+	})
+	resolveCtx = resolveCtx.WithContext(withRequestContext(h.ctx, reqContext))
 	if h.graphqlHandler.authorizer != nil {
 		resolveCtx = WithAuthorizationExtension(resolveCtx)
 		resolveCtx.SetAuthorizer(h.graphqlHandler.authorizer)

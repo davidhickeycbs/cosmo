@@ -100,8 +100,9 @@ type MetricsOTLPExporter struct {
 }
 
 type Metrics struct {
-	OTLP       MetricsOTLP `yaml:"otlp"`
-	Prometheus Prometheus  `yaml:"prometheus"`
+	Attributes []CustomAttribute `yaml:"attributes"`
+	OTLP       MetricsOTLP       `yaml:"otlp"`
+	Prometheus Prometheus        `yaml:"prometheus"`
 }
 
 type MetricsOTLP struct {
@@ -299,7 +300,7 @@ type EngineExecutionConfiguration struct {
 	EnableSingleFlight                     bool                     `envDefault:"true" env:"ENGINE_ENABLE_SINGLE_FLIGHT" yaml:"enable_single_flight"`
 	EnableRequestTracing                   bool                     `envDefault:"true" env:"ENGINE_ENABLE_REQUEST_TRACING" yaml:"enable_request_tracing"`
 	EnableExecutionPlanCacheResponseHeader bool                     `envDefault:"false" env:"ENGINE_ENABLE_EXECUTION_PLAN_CACHE_RESPONSE_HEADER" yaml:"enable_execution_plan_cache_response_header"`
-	MaxConcurrentResolvers                 int                      `envDefault:"256" env:"ENGINE_MAX_CONCURRENT_RESOLVERS" yaml:"max_concurrent_resolvers,omitempty"`
+	MaxConcurrentResolvers                 int                      `envDefault:"32" env:"ENGINE_MAX_CONCURRENT_RESOLVERS" yaml:"max_concurrent_resolvers,omitempty"`
 	EnableWebSocketEpollKqueue             bool                     `envDefault:"true" env:"ENGINE_ENABLE_WEBSOCKET_EPOLL_KQUEUE" yaml:"enable_websocket_epoll_kqueue"`
 	EpollKqueuePollTimeout                 time.Duration            `envDefault:"1s" env:"ENGINE_EPOLL_KQUEUE_POLL_TIMEOUT" yaml:"epoll_kqueue_poll_timeout,omitempty"`
 	EpollKqueueConnBufferSize              int                      `envDefault:"128" env:"ENGINE_EPOLL_KQUEUE_CONN_BUFFER_SIZE" yaml:"epoll_kqueue_conn_buffer_size,omitempty"`
@@ -545,6 +546,7 @@ type SubgraphErrorPropagationConfiguration struct {
 	AttachServiceName      bool                         `yaml:"attach_service_name" envDefault:"true" env:"SUBGRAPH_ERROR_PROPAGATION_ATTACH_SERVICE_NAME"`
 	DefaultExtensionCode   string                       `yaml:"default_extension_code" envDefault:"DOWNSTREAM_SERVICE_ERROR" env:"SUBGRAPH_ERROR_PROPAGATION_DEFAULT_EXTENSION_CODE"`
 	AllowedExtensionFields []string                     `yaml:"allowed_extension_fields" envDefault:"code" env:"SUBGRAPH_ERROR_PROPAGATION_ALLOWED_EXTENSION_FIELDS"`
+	AllowedFields          []string                     `yaml:"allowed_fields" env:"SUBGRAPH_ERROR_PROPAGATION_ALLOWED_FIELDS"`
 }
 
 type StorageProviders struct {
@@ -577,8 +579,14 @@ type PersistedOperationsCDNProvider struct {
 }
 
 type ExecutionConfigStorage struct {
-	ProviderID string `yaml:"provider_id,omitempty" env:"EXECUTION_CONFIG_STORAGE_PROVIDER_ID"`
-	ObjectPath string `yaml:"object_path,omitempty" env:"EXECUTION_CONFIG_STORAGE_OBJECT_PATH"`
+	ProviderID string `yaml:"provider_id,omitempty" env:"PROVIDER_ID"`
+	ObjectPath string `yaml:"object_path,omitempty" env:"OBJECT_PATH"`
+}
+
+type FallbackExecutionConfigStorage struct {
+	Enabled    bool   `yaml:"enabled" envDefault:"false" env:"ENABLED"`
+	ProviderID string `yaml:"provider_id,omitempty" env:"PROVIDER_ID"`
+	ObjectPath string `yaml:"object_path,omitempty" env:"OBJECT_PATH"`
 }
 
 type ExecutionConfigFile struct {
@@ -587,8 +595,9 @@ type ExecutionConfigFile struct {
 }
 
 type ExecutionConfig struct {
-	File    ExecutionConfigFile    `yaml:"file,omitempty"`
-	Storage ExecutionConfigStorage `yaml:"storage,omitempty"`
+	File            ExecutionConfigFile            `yaml:"file,omitempty"`
+	Storage         ExecutionConfigStorage         `yaml:"storage,omitempty" envPrefix:"EXECUTION_CONFIG_STORAGE_"`
+	FallbackStorage FallbackExecutionConfigStorage `yaml:"fallback_storage,omitempty" envPrefix:"EXECUTION_CONFIG_FALLBACK_STORAGE_"`
 }
 
 type PersistedOperationsCacheConfig struct {
@@ -630,9 +639,10 @@ type AccessLogsFileOutputConfig struct {
 }
 
 type ApolloCompatibilityFlags struct {
-	EnableAll       bool                               `yaml:"enable_all" envDefault:"false" env:"APOLLO_COMPATIBILITY_ENABLE_ALL"`
-	ValueCompletion ApolloCompatibilityValueCompletion `yaml:"value_completion"`
-	TruncateFloats  ApolloCompatibilityTruncateFloats  `yaml:"truncate_floats"`
+	EnableAll           bool                                   `yaml:"enable_all" envDefault:"false" env:"APOLLO_COMPATIBILITY_ENABLE_ALL"`
+	ValueCompletion     ApolloCompatibilityValueCompletion     `yaml:"value_completion"`
+	TruncateFloats      ApolloCompatibilityTruncateFloats      `yaml:"truncate_floats"`
+	SuppressFetchErrors ApolloCompatibilitySuppressFetchErrors `yaml:"suppress_fetch_errors"`
 }
 
 type ApolloCompatibilityValueCompletion struct {
@@ -640,12 +650,16 @@ type ApolloCompatibilityValueCompletion struct {
 }
 
 type ClientHeader struct {
-	Name string `yaml:"name,omitempty"`
+	Name    string `yaml:"name,omitempty"`
 	Version string `yaml:"version,omitempty"`
 }
 
 type ApolloCompatibilityTruncateFloats struct {
 	Enabled bool `yaml:"enabled" envDefault:"false" env:"APOLLO_COMPATIBILITY_TRUNCATE_FLOATS_ENABLED"`
+}
+
+type ApolloCompatibilitySuppressFetchErrors struct {
+	Enabled bool `yaml:"enabled" envDefault:"false" env:"APOLLO_COMPATIBILITY_SUPPRESS_FETCH_ERRORS_ENABLED"`
 }
 
 type Config struct {
@@ -709,7 +723,7 @@ type Config struct {
 	ExecutionConfig           ExecutionConfig           `yaml:"execution_config"`
 	PersistedOperationsConfig PersistedOperationsConfig `yaml:"persisted_operations"`
 	ApolloCompatibilityFlags  ApolloCompatibilityFlags  `yaml:"apollo_compatibility_flags"`
-	ClientHeader  ClientHeader  `yaml:"client_header"`
+	ClientHeader              ClientHeader              `yaml:"client_header"`
 }
 
 type LoadResult struct {

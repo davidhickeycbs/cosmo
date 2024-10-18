@@ -4,6 +4,18 @@ Binaries are attached to the github release otherwise all images can be found [h
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [0.26.0](https://github.com/wundergraph/cosmo/compare/graphqlmetrics@0.25.0...graphqlmetrics@0.26.0) (2024-10-17)
+
+### Features
+
+* custom metric attributes ([#1267](https://github.com/wundergraph/cosmo/issues/1267)) ([f6a4224](https://github.com/wundergraph/cosmo/commit/f6a4224a2370e8eb6e36598a22f60a3eee83f055)) (@StarpTech)
+
+# [0.25.0](https://github.com/wundergraph/cosmo/compare/graphqlmetrics@0.24.0...graphqlmetrics@0.25.0) (2024-10-09)
+
+### Features
+
+* add indirect interface fields to schema usage reporting ([#1235](https://github.com/wundergraph/cosmo/issues/1235)) ([1c62c14](https://github.com/wundergraph/cosmo/commit/1c62c14f9a9f11a6fbbebf5a3fbc4d85f304285e)) (@jensneuse)
+
 # [0.24.0](https://github.com/wundergraph/cosmo/compare/graphqlmetrics@0.23.1...graphqlmetrics@0.24.0) (2024-09-23)
 
 ### Features

@@ -6,22 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	rErrors "github.com/wundergraph/cosmo/router/internal/errors"
 	rotel "github.com/wundergraph/cosmo/router/pkg/otel"
 	"io"
 	"net/http"
 	"strings"
 
-	"go.opentelemetry.io/otel/attribute"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 
-	"github.com/go-chi/chi/v5/middleware"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/wundergraph/cosmo/router/pkg/config"
-	"github.com/wundergraph/cosmo/router/pkg/logging"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -142,15 +138,9 @@ type GraphQLHandler struct {
 func (h *GraphQLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	requestContext := getRequestContext(r.Context())
 
-	var baseAttributes []attribute.KeyValue
-
-	if attributes := baseAttributesFromContext(r.Context()); attributes != nil {
-		baseAttributes = append(baseAttributes, attributes...)
-	}
-
 	executionContext, graphqlExecutionSpan := h.tracer.Start(r.Context(), "Operation - Execute",
 		trace.WithSpanKind(trace.SpanKindInternal),
-		trace.WithAttributes(baseAttributes...),
+		trace.WithAttributes(requestContext.telemetry.CommonAttrs()...),
 	)
 	defer graphqlExecutionSpan.End()
 
@@ -189,11 +179,11 @@ func (h *GraphQLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer propagateSubgraphErrors(ctx)
 
 		resp, err := h.executor.Resolver.ResolveGraphQLResponse(ctx, p.Response, nil, HeaderPropagationWriter(w, ctx.Context()))
-		requestContext.dataSources = p.Response.DataSources
+		requestContext.dataSourceNames = getSubgraphNames(p.Response.DataSources)
+		requestContext.telemetry.AddCustomMetricStringSliceAttr(ContextFieldOperationServices, requestContext.dataSourceNames)
 
 		if err != nil {
-			requestContext.logger.Error("unable to resolve response", zap.Error(err))
-			trackResponseError(ctx.Context(), err)
+			trackFinalResponseError(ctx.Context(), err)
 			h.WriteError(ctx, err, p.Response, w)
 			return
 		}
@@ -210,7 +200,7 @@ func (h *GraphQLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx, writer, ok = GetSubscriptionResponseWriter(ctx, ctx.Variables, r, w)
 		if !ok {
 			requestContext.logger.Error("unable to get subscription response writer", zap.Error(errCouldNotFlushResponse))
-			trackResponseError(r.Context(), errCouldNotFlushResponse)
+			trackFinalResponseError(r.Context(), errCouldNotFlushResponse)
 			writeRequestErrors(r, w, http.StatusInternalServerError, graphqlerrors.RequestErrorsFromError(errCouldNotFlushResponse), requestContext.logger)
 			return
 		}
@@ -219,25 +209,28 @@ func (h *GraphQLHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer h.websocketStats.ConnectionsDec()
 
 		err := h.executor.Resolver.ResolveGraphQLSubscription(ctx, p.Response, writer)
+		requestContext.dataSourceNames = getSubgraphNames(p.Response.Response.DataSources)
+		requestContext.telemetry.AddCustomMetricStringSliceAttr(ContextFieldOperationServices, requestContext.dataSourceNames)
+
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				requestContext.logger.Debug("context canceled: unable to resolve subscription response", zap.Error(err))
-				trackResponseError(r.Context(), err)
+				trackFinalResponseError(r.Context(), err)
 				return
 			} else if errors.Is(err, ErrUnauthorized) {
-				trackResponseError(ctx.Context(), err)
+				trackFinalResponseError(ctx.Context(), err)
 				writeRequestErrors(r, w, http.StatusUnauthorized, graphqlerrors.RequestErrorsFromError(err), requestContext.logger)
 				return
 			}
 
 			requestContext.logger.Error("unable to resolve subscription response", zap.Error(err))
-			trackResponseError(ctx.Context(), err)
+			trackFinalResponseError(ctx.Context(), err)
 			writeRequestErrors(r, w, http.StatusInternalServerError, graphqlerrors.RequestErrorsFromError(errCouldNotResolveResponse), requestContext.logger)
 			return
 		}
 	default:
 		requestContext.logger.Error("unsupported plan kind")
-		trackResponseError(ctx.Context(), errOperationPlanUnsupported)
+		trackFinalResponseError(ctx.Context(), errOperationPlanUnsupported)
 		writeRequestErrors(r, w, http.StatusInternalServerError, graphqlerrors.RequestErrorsFromError(errOperationPlanUnsupported), requestContext.logger)
 	}
 }
@@ -272,12 +265,21 @@ func (h *GraphQLHandler) configureRateLimiting(ctx *resolve.Context) *resolve.Co
 // @TODO This function should be refactored to be a helper function for websocket and http error writing
 // In the websocket case, we call this function concurrently as part of the polling loop. This is error-prone.
 func (h *GraphQLHandler) WriteError(ctx *resolve.Context, err error, res *resolve.GraphQLResponse, w io.Writer) {
-	requestLogger := h.log.With(logging.WithRequestID(middleware.GetReqID(ctx.Context())))
+	reqContext := getRequestContext(ctx.Context())
+
+	if reqContext == nil {
+		h.log.Error("unable to get request context")
+		return
+	}
+
+	requestLogger := reqContext.logger
+
 	httpWriter, isHttpResponseWriter := w.(http.ResponseWriter)
 	response := GraphQLErrorResponse{
 		Errors: make([]graphqlError, 1),
 		Data:   nil,
 	}
+
 	switch getErrorType(err) {
 	case errorTypeRateLimit:
 		response.Errors[0].Message = "Rate limit exceeded"
@@ -355,6 +357,7 @@ func (h *GraphQLHandler) WriteError(ctx *resolve.Context, err error, res *resolv
 			httpWriter.WriteHeader(http.StatusInternalServerError)
 		}
 	}
+
 	if ctx.TracingOptions.Enable && ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		traceNode := resolve.GetTrace(ctx.Context(), res.Fetches)
 		if response.Extensions == nil {
@@ -362,13 +365,19 @@ func (h *GraphQLHandler) WriteError(ctx *resolve.Context, err error, res *resolv
 		}
 		response.Extensions.Trace, err = json.Marshal(traceNode)
 		if err != nil {
-			requestLogger.Error("unable to marshal trace node", zap.Error(err))
+			requestLogger.Error("Unable to marshal trace node", zap.Error(err))
 		}
 	}
+
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
-		requestLogger.Error("unable to write rate limit response", zap.Error(err))
+		if rErrors.IsBrokenPipe(err) {
+			requestLogger.Warn("Broken pipe, unable to write error response", zap.Error(err))
+		} else {
+			requestLogger.Error("Unable to write error response", zap.Error(err))
+		}
 	}
+
 	if wsRw, ok := w.(*websocketResponseWriter); ok {
 		_ = wsRw.Flush()
 	}

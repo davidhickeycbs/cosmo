@@ -29,6 +29,7 @@
       "WithNewRoot": false
     },
     "Metrics": {
+      "Attributes": null,
       "OTLP": {
         "Enabled": true,
         "RouterRuntime": true,
@@ -229,7 +230,7 @@
     "EnableSingleFlight": true,
     "EnableRequestTracing": true,
     "EnableExecutionPlanCacheResponseHeader": false,
-    "MaxConcurrentResolvers": 256,
+    "MaxConcurrentResolvers": 32,
     "EnableWebSocketEpollKqueue": true,
     "EpollKqueuePollTimeout": 1000000000,
     "EpollKqueueConnBufferSize": 128,
@@ -286,7 +287,8 @@
     "DefaultExtensionCode": "DOWNSTREAM_SERVICE_ERROR",
     "AllowedExtensionFields": [
       "code"
-    ]
+    ],
+    "AllowedFields": null
   },
   "StorageProviders": {
     "S3": null,
@@ -298,6 +300,11 @@
       "Watch": false
     },
     "Storage": {
+      "ProviderID": "",
+      "ObjectPath": ""
+    },
+    "FallbackStorage": {
+      "Enabled": false,
       "ProviderID": "",
       "ObjectPath": ""
     }
@@ -317,6 +324,9 @@
       "Enabled": false
     },
     "TruncateFloats": {
+      "Enabled": false
+    },
+    "SuppressFetchErrors": {
       "Enabled": false
     }
   },
